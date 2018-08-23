@@ -12,10 +12,11 @@ from keras.layers import Flatten, Dense, Dropout, BatchNormalization
 from keras.optimizers import Adam
 from numpy.random import seed, shuffle
 from keras.applications.vgg16 import VGG16
+from keras.applications.xception import Xception
 from sklearn.metrics import accuracy_score
 import os
 import re
-
+import pickle
 
 class NeuralNetwork:
 
@@ -168,26 +169,28 @@ if __name__ == '__main__':
     for k,v in df_label_breed.iterrows():
         label2breed[v.LABELS] = v.BREED
     # load model
-    modelVGG16 = VGG16(weights='imagenet', include_top=False,
+    #modelVGG16 = VGG16(weights='imagenet', include_top=False,
+    #                   input_shape = (224,224,3))
+    modelXception = Xception(weights='imagenet', include_top=False,
                        input_shape = (224,224,3))
     # train only the last layer
-    for layer in modelVGG16.layers:
+    for layer in modelXception.layers:
         layer.trainable = False
 
     # adapt output to our case
-    x = modelVGG16.output
+    x = modelXception.output
     x = Flatten()(x)
-    x = Dropout(0.4)(x)
+    #x = Dropout(0.4)(x)
     # let's add two fully-connected layer
-    x = Dense(2048, activation='relu')(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.4)(x)
-    x = Dense(2048, activation='relu')(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.2)(x)
+    #x = Dense(2048, activation='relu')(x)
+    #x = BatchNormalization()(x)
+    #x = Dropout(0.4)(x)
+    #x = Dense(2048, activation='relu')(x)
+    #x = BatchNormalization()(x)
+    #x = Dropout(0.2)(x)
 
     pred = Dense(20, activation="softmax")(x)
-    dogbreed_model = Model(inputs=modelVGG16.input, outputs=[pred])
+    dogbreed_model = Model(inputs=modelXception.input, outputs=[pred])
 
     model = NeuralNetwork(dogbreed_model, label2class,
                           invertlabel2class, label2breed)
@@ -203,7 +206,11 @@ if __name__ == '__main__':
     print("Test data preparation")
     X_test, y_test = model.dataset_preparation(df_test, index_test_samples)
     print("Fitting data...")
-    model_info = model.fit(X_train, y_train, validation_data =(X_cv,y_cv))
+    model_info = model.fit(X_train, y_train, validation_data =(X_cv,y_cv),
+                           epochs = 20)
+
+    print("Saved model to ", dir_path +"/nn_xception.h5")
+    model.save("nn_xception")
 
     print("Predicting data...")
     y_pred = model.predict(X_test)
@@ -213,5 +220,4 @@ if __name__ == '__main__':
 
     print("Accuracy score: ", score)
 
-    print("Saved model to ", dir_path +"/nn_model_2.h5")
-    model.save("nn_model_2")
+    pickle.dump(model_info, open(dir_path + '/model_info_xception.p', 'wb') )
