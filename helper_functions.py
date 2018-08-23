@@ -3,9 +3,9 @@ import pandas as pd
 from skimage.color import rgb2grey
 from skimage.feature import daisy, hog
 from sklearn.cluster import MiniBatchKMeans
+from skimage import filters
 import matplotlib.pyplot as plt
 import re
-#from skimage.transform import resize
 import cv2
 
 def clustering(features, n_cluster):
@@ -123,22 +123,25 @@ def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
     -------
     feature descriptors
     """
+
     mat_img = np.array(img)
 
     # convert to gray scale as only the luminosity is important
     mat_img_gray = rgb2grey(mat_img)
 
+    mat_img_filter_gray = filters.median(mat_img_gray)
+
     output = []
 
     if l_hog:
         if visualize:
-            fd, img_hog = hog(mat_img, orientations=8, pixels_per_cell=(16, 16),
+            fd, img_hog = hog(mat_img_filter_gray, orientations=8, pixels_per_cell=(16, 16),
                               cells_per_block=(1, 1), visualize=visualize,
                               feature_vector=True)
             output_hog = fd, img_hog
 
         else:
-            fd = hog(mat_img, orientations=8, pixels_per_cell=(16, 16),
+            fd = hog(mat_img_filter_gray, orientations=8, pixels_per_cell=(16, 16),
                      cells_per_block=(1, 1), visualize=visualize,
                      feature_vector=True)
             output_hog = fd
@@ -148,7 +151,7 @@ def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
     if l_daisy:
         # apply daisy feature extraction
         if visualize:
-            descs, img_daisy = daisy(mat_img_gray, step=step, rings=2,
+            descs, img_daisy = daisy(mat_img_filter_gray, step=step, rings=2,
                                      histograms=histograms, radius=radius,
                                      normalization='l2',
                                      orientations=orientations,
@@ -157,7 +160,7 @@ def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
             output_daisy = descs, img_daisy
 
         else:
-            descs = daisy(mat_img_gray, step=step, rings=2, radius=radius,
+            descs = daisy(mat_img_filter_gray, step=step, rings=2, radius=radius,
                           histograms=histograms, normalization='l2',
                           orientations=orientations, visualize=visualize)
 
@@ -168,8 +171,10 @@ def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
         output.append(output_daisy)
 
     if l_sift:
+
         sift = cv2.xfeatures2d.SIFT_create()
-        img_gray = cv2.cvtColor(mat_img, cv2.COLOR_BGR2GRAY)
+        median_blur_img = cv2.medianBlur(mat_img, ksize=3)
+        img_gray = cv2.cvtColor(median_blur_img, cv2.COLOR_BGR2GRAY)
         kp, descs = sift.detectAndCompute(img_gray, None)
         output_sift = descs
 
@@ -262,13 +267,20 @@ def learning_curve(n_clusters, train_scores, test_scores, ax):
     return ax
 
 def img_cropping(parsedXML, img):
-
+    """
+    image cropping using bounding boxes provided by
+    """
     xmin = int(parsedXML.getElementsByTagName('xmin')[0].firstChild.nodeValue)
     ymin = int(parsedXML.getElementsByTagName('ymin')[0].firstChild.nodeValue)
     xmax = int(parsedXML.getElementsByTagName('xmax')[0].firstChild.nodeValue)
     ymax = int(parsedXML.getElementsByTagName('ymax')[0].firstChild.nodeValue)
 
-    cropped = img[xmin:xmax,ymin:ymax]
+    try:
+        cropped = img[xmin:xmax, ymin:ymax]
+    except ValueError:
+        # take the initial picture if anomalies
+        cropped = img
+
     return cropped
 
 def find_dogbreed(file_str, delimiter="-|/"):
