@@ -7,8 +7,7 @@ Two approaches were studies:
 - CNN approach: choices of CNN are VGG16 and Xception
 
 ## Files:
-- db: folder needed to launch predict.py
 - predict.py: file used for prediction, it takes an image as input and outputs breed probability 
 - nn_training.py: python file used for neural network training
 - helper_functions.py: annexe functions
-- EDA.ipynb: exploratory ipython notebook for the topic
+- EDA.ipynb: exploratory ipython notebook
