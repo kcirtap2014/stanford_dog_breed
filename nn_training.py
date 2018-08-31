@@ -14,6 +14,7 @@ from numpy.random import seed, shuffle
 from keras.applications.vgg16 import VGG16
 from keras.applications.xception import Xception
 from sklearn.metrics import accuracy_score
+import cv2
 import os
 import re
 import pickle
@@ -31,8 +32,8 @@ class NeuralNetwork:
 
         for i, key in enumerate(index_samples):
             img = Image.open("./images/" + df.loc[key].PATH)
-            mat_img = np.array(img)
-            X.append(resize(mat_img, (224,224,3)))
+            mat_img = nn_image_preprocessing(img)
+            X.append(mat_img)
 
         y_temp = df.loc[index_samples].LABELS.replace(self.label2class)
         y = to_categorical(y_temp, num_classes=len(self.label2class))
@@ -73,6 +74,24 @@ class NeuralNetwork:
 
 def find_dogbreed(file_str, delimiter="-|/"):
     return re.split("-|/",file_str)[1]
+
+def nn_image_preprocessing(img, size =(224,224,3)):
+
+    mat_img = np.array(img)
+    #median_blur_img = cv2.medianBlur(mat_img, ksize=3)
+
+    # convert bgr2yuv
+    img_yuv = cv2.cvtColor(mat_img, cv2.COLOR_BGR2YUV)
+
+    # equalize the histogram of the Y channel
+    img_yuv[:,:,0] = cv2.equalizeHist(img_yuv[:,:,0])
+
+    # convert the YUV image back to RGB format
+    img_eq = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
+
+    img_resize = resize(img_eq, size)
+
+    return img_resize
 
 def top_k_accuracy(y_pred_proba, y_true, classes, k=5):
     """
@@ -171,14 +190,17 @@ if __name__ == '__main__':
     # load model
     #modelVGG16 = VGG16(weights='imagenet', include_top=False,
     #                   input_shape = (224,224,3))
-    modelXception = Xception(weights='imagenet', include_top=False,
+    modelXception= Xception(weights='imagenet', include_top=False,
                        input_shape = (224,224,3))
     # train only the last layer
     for layer in modelXception.layers:
         layer.trainable = False
+    #for layer in modelVGG16.layers:
+    #    layer.trainable = False
 
     # adapt output to our case
     x = modelXception.output
+    #x = modelVGG16.output
     x = Flatten()(x)
     #x = Dropout(0.4)(x)
     # let's add two fully-connected layer
@@ -191,6 +213,7 @@ if __name__ == '__main__':
 
     pred = Dense(20, activation="softmax")(x)
     dogbreed_model = Model(inputs=modelXception.input, outputs=[pred])
+    #dogbreed_model = Model(inputs=modelVGG16.input, outputs=[pred])
 
     model = NeuralNetwork(dogbreed_model, label2class,
                           invertlabel2class, label2breed)
@@ -209,8 +232,9 @@ if __name__ == '__main__':
     model_info = model.fit(X_train, y_train, validation_data =(X_cv,y_cv),
                            epochs = 20)
 
-    print("Saved model to ", dir_path +"/nn_xception.h5")
-    model.save("nn_xception")
+    filename = "nn_Xception_eq.h5"
+    print("Saved model to ", dir_path +"/" + filename)
+    model.save(filename)
 
     print("Predicting data...")
     y_pred = model.predict(X_test)
@@ -220,4 +244,5 @@ if __name__ == '__main__':
 
     print("Accuracy score: ", score)
 
-    pickle.dump(model_info, open(dir_path + '/model_info_xception.p', 'wb') )
+    pickle.dump(score, open(dir_path + '/score_Xception_eq.p', 'wb') )
+    #pickle.dump(model_info, open(dir_path + '/model_info_VGG16_eq.p', 'wb') )

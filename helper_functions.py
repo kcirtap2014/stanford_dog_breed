@@ -5,6 +5,7 @@ from skimage.feature import daisy, hog
 from sklearn.cluster import MiniBatchKMeans
 from skimage import filters
 import matplotlib.pyplot as plt
+from skimage import exposure
 import re
 import cv2
 
@@ -85,7 +86,7 @@ def top_k_accuracy(y_pred_proba, y_true, classes, k=5):
 
     return score
 
-def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
+def feature_engineering(img, step=32, radius=32, histograms=8, orientations=8,
                         visualize=False, l_hog=True, l_daisy=True, l_sift=True):
     """
     feature engineering with HOG, DAISY and/or SIFT descriptors
@@ -123,25 +124,19 @@ def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
     -------
     feature descriptors
     """
-
+    mat_img_filter = image_preprocessing(img)
     mat_img = np.array(img)
-
-    # convert to gray scale as only the luminosity is important
-    mat_img_gray = rgb2grey(mat_img)
-
-    mat_img_filter_gray = filters.median(mat_img_gray)
-
     output = []
 
     if l_hog:
         if visualize:
-            fd, img_hog = hog(mat_img_filter_gray, orientations=8, pixels_per_cell=(16, 16),
+            fd, img_hog = hog(mat_img_filter, orientations=8, pixels_per_cell=(16, 16),
                               cells_per_block=(1, 1), visualize=visualize,
                               feature_vector=True)
             output_hog = fd, img_hog
 
         else:
-            fd = hog(mat_img_filter_gray, orientations=8, pixels_per_cell=(16, 16),
+            fd = hog(mat_img_filter, orientations=8, pixels_per_cell=(16, 16),
                      cells_per_block=(1, 1), visualize=visualize,
                      feature_vector=True)
             output_hog = fd
@@ -151,7 +146,7 @@ def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
     if l_daisy:
         # apply daisy feature extraction
         if visualize:
-            descs, img_daisy = daisy(mat_img_filter_gray, step=step, rings=2,
+            descs, img_daisy = daisy(mat_img_filter, step=step, rings=2,
                                      histograms=histograms, radius=radius,
                                      normalization='l2',
                                      orientations=orientations,
@@ -160,7 +155,7 @@ def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
             output_daisy = descs, img_daisy
 
         else:
-            descs = daisy(mat_img_filter_gray, step=step, rings=2, radius=radius,
+            descs = daisy(mat_img_filter, step=step, rings=2, radius=radius,
                           histograms=histograms, normalization='l2',
                           orientations=orientations, visualize=visualize)
 
@@ -173,13 +168,20 @@ def image_preprocessing(img, step=32, radius=32, histograms=8, orientations=8,
     if l_sift:
 
         sift = cv2.xfeatures2d.SIFT_create()
-        median_blur_img = cv2.medianBlur(mat_img, ksize=3)
-        img_gray = cv2.cvtColor(median_blur_img, cv2.COLOR_BGR2GRAY)
-        kp, descs = sift.detectAndCompute(img_gray, None)
+        # convert to gray scale
+        img_gray = cv2.cvtColor(mat_img, cv2.COLOR_BGR2GRAY)
+
+        # denoise
+        #median_blur_img = cv2.medianBlur(img_gray, ksize=1)
+
+        # equalizer: contrast adjustment
+        img_eq = cv2.equalizeHist(img_gray)
+
+        kp, descs = sift.detectAndCompute(img_eq, None)
         output_sift = descs
 
         if visualize:
-            img_sift = cv2.drawKeypoints(img_gray, kp, None,
+            img_sift = cv2.drawKeypoints(img_eq, kp, None,
                                          flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
             output_sift = descs, img_sift
 
@@ -222,6 +224,21 @@ def group_sort(df, feature, by_index=False, ascending=True, lim=None):
         db_sorted = db_sorted.head(lim)
 
     return db_sorted
+
+def image_preprocessing(img):
+
+    mat_img = np.array(img)
+
+    # convert to gray scale as only the luminosity is important
+    mat_img_gray = rgb2grey(mat_img)
+
+    # denoise
+    #mat_img_filter = filters.median(mat_img_gray)
+
+    # contast adjustment
+    mat_img_eq = exposure.equalize_adapthist(mat_img_gray, clip_limit=0.03)
+
+    return mat_img_eq
 
 def learning_curve(n_clusters, train_scores, test_scores, ax):
     """

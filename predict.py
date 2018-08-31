@@ -6,7 +6,7 @@ from skimage.io import imread
 
 from keras.models import load_model
 from skimage.transform import resize
-from helper_functions import (image_preprocessing, clustering, find_cluster)
+from helper_functions import (feature_engineering, clustering, find_cluster)
 import pylab as plt
 import os
 import sys
@@ -33,11 +33,11 @@ class Inference:
         X = []
 
         if self.l_svm:
-            output = image_preprocessing(self.image_path)
-            bovw_hog = find_cluster(self. kmeans_hog,
+            output = feature_engineering(self.image_path)
+            bovw_hog = find_cluster(self.kmeans_hog,
                                     np.reshape(output[0],(-1,1)))
-            bovw_daisy = find_cluster(self. kmeans_daisy, output[1])
-            bovw_sift = find_cluster(self. kmeans_sift, output[2])
+            bovw_daisy = find_cluster(self.kmeans_daisy, output[1])
+            bovw_sift = find_cluster(self.kmeans_sift, output[2])
             bovw_feature = bovw_sift + bovw_daisy + bovw_hog
             X.append(bovw_feature)
 
@@ -109,7 +109,7 @@ if __name__=="__main__":
     # image,miscellaneous files
     image = imread(image_path)
     invertlabel2class, label2breed = load_miscellaneous(dir_path)
-
+    
     # Neural network
     model_nn = load_model(dir_path + "/db/nn_xception.h5")
     inference_nn = Inference(model_nn, image, label2breed, invertlabel2class)
@@ -134,7 +134,7 @@ if __name__=="__main__":
     y_pred_sort_svm = np.sort(y_pred_svm)[::-1]
     index_y_pred_sort_svm = np.argsort(y_pred_svm)[::-1]
     df_pred_svm = pd.DataFrame(list(zip(np.array(breed_svm)[index_y_pred_sort_svm],
-                            np.round(y_pred_sort_svm,3))),
+                            np.round(y_pred_sort_svm,2))),
                             columns = ["BREED","PROBA"])
 
     # API-Plot
